@@ -56,16 +56,25 @@ async function nameChange () {
 
 /*---------------------------------------------------------------------*/
 
+function isJsonString(str) {
+    try {
+        JSON.parse(str);
+    } catch (e) {
+        return false;
+    }
+    return true;
+}
+
 function loginUser(message, args) {
     var tokenfile = JSON.parse(fs.readFileSync('token.json', 'utf8'));    
     if (tokenfile.hasOwnProperty('refresh_token')) { message.channel.send('Már be vagy jelentkezve!\nKijelentkezéshez használd a `:logout` parancsot!'); return; }
 
-    if (args.length != 2) { message.channel.send('Hibásan megadott paraméterek!\n`:login <felhasznalonev> <jelszo>`'); return; }
+    if (args.length != 3) { message.channel.send('Hibásan megadott paraméterek!\n`:login <felhasznalonev> <jelszo> <intezmenyid>`'); return; }
 
-    var URL = "klik035227001.e-kreta.hu";
+    var URL = args[2] + ".e-kreta.hu";
     var PATH = "/idp/api/v1/Token";
 
-    var postData = "institute_code=klik035227001&userName="+args[0]+"&password="+args[1]+"&grant_type=password&client_id=919e0c1c-76a2-4646-a2fb-7085bbbf3c56";
+    var postData = "institute_code=" + args[2] + "&userName="+args[0]+"&password="+args[1]+"&grant_type=password&client_id=919e0c1c-76a2-4646-a2fb-7085bbbf3c56";
 
     var options = {
         host: URL,
@@ -96,7 +105,7 @@ function loginUser(message, args) {
             var bodyJson = JSON.parse(body);
 
             var newJson = {
-                "institute_code": "klik035227001",
+                "institute_code": args[2],
                 "access_token": bodyJson["access_token"],
                 "expires_in": bodyJson["expires_in"],
                 "refresh_token": bodyJson["refresh_token"],
@@ -106,6 +115,8 @@ function loginUser(message, args) {
             //console.log("\n" + newJson + "\n");
 
         });
+
+        message.delete();
     });
 
     req.on('error', function(e) {
@@ -117,7 +128,7 @@ function loginUser(message, args) {
     req.end();
 }
 
-function refreshToken() {
+function refreshToken(message, args) {
     var settings = JSON.parse(fs.readFileSync('token.json', 'utf8'));
     var URL = settings["institute_code"] + ".e-kreta.hu";
     var PATH = "/idp/api/v1/Token";
@@ -148,7 +159,7 @@ function refreshToken() {
             var bodyJson = JSON.parse(body);
 
             var newJson = {
-                "institute_code": "klik035227001",
+                "institute_code": settings["institute_code"],
                 "access_token": bodyJson["access_token"],
                 "expires_in": bodyJson["expires_in"],
                 "refresh_token": bodyJson["refresh_token"],
@@ -157,6 +168,8 @@ function refreshToken() {
             fs.writeFile('token.json', JSON.stringify(newJson), 'utf-8', function() {});
             
         });
+
+        jegyek(message, args);
     });
 
     req.on('error', function(e) {
@@ -167,6 +180,11 @@ function refreshToken() {
     req.write(postData);
     req.end();
 
+}
+
+function logout(message, args) {
+    fs.writeFile('token.json', "{}", 'utf-8', function() {});
+    message.channel.send('Sikeres kijelentkezés!');
 }
 
 function sendJegyek(message, bodyJSON){
@@ -209,7 +227,7 @@ function jegyek(message, args) {
 
     if (args.length != 0) { message.channel.send('Hibásan megadott paraméterek!\n`:jegyek`'); return; }
 
-    var URL = "klik035227001.e-kreta.hu";
+    var URL = tokenfile["institute_code"]+".e-kreta.hu";
     var PATH = "/mapi/api/v1/Student";
 
     var options = {
@@ -237,9 +255,14 @@ function jegyek(message, args) {
             str+=chunk;
         });
 
+
         res.on('end',function(){
-            obj=JSON.parse(str);
-            sendJegyek(message, obj);
+            if (isJsonString(str)) {
+                obj=JSON.parse(str);
+                sendJegyek(message, obj);
+        } else {
+                refreshToken(message, args);
+            }
         });
 
     });
@@ -258,7 +281,7 @@ function jegyek(message, args) {
 
 client.on('message', message => {
     if (!message.content.startsWith(config['prefix']) || message.author.bot) return;
-    if (message.channel.type != "text") return;
+    //if (message.channel.type != "text") return;
     
 	const args = message.content.slice(config['prefix'].length).split(/ +/);
     const command = args.shift().toLowerCase();
@@ -272,7 +295,11 @@ client.on('message', message => {
     }
 
     if (command === 'refresh') {
-        refreshToken();
+        refreshToken(message, args);
+    }
+
+    if (command === 'logout') {
+        logout(message, args);
     }
 	// Több command...
 });
