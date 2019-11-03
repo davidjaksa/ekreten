@@ -216,7 +216,7 @@ function refreshToken(message, args, functionname, commandToDo) {
                     });
 
                     if (isset(functionname)) {
-                        eval(functionname + "(message, args, "+commandToDo+")");
+                        eval(doCommand+"(message, args, "+commandToDo+")");
                     }
                 });
             });
@@ -259,7 +259,8 @@ function sendJegyek(message, args, bodyJSON){
     const jegyekEmbed = new Discord.RichEmbed()
         .setColor('#1979e0')
         .setTitle('Az idei jegyeid')
-        .setAuthor(bodyJSON.Name, message.author.avatarURL, '')
+        .setAuthor(bodyJSON.Name, message.author.avatarURL, '');
+        
         Object.keys(result).forEach(function (key) {
             var str1 = "";
             result[key].forEach(jegy => {
@@ -283,26 +284,34 @@ function sendAtlag(message, args, bodyJSON){
         r[a.Subject].push(a);
         return r;
     }, Object.create(null));
-    //console.log(result);
     
-    const jegyekEmbed = new Discord.RichEmbed()
+    const atlagEmbed = new Discord.RichEmbed()
         .setColor('#1979e0')
-        .setTitle('Az idei jegyeid')
-        .setAuthor(bodyJSON.Name, message.author.avatarURL, '')
-        Object.keys(result).forEach(function (key) {
-            var str1 = "";
-            result[key].forEach(jegy => {
-                if (jegy.Theme != "") {
+        .setTitle('Az átlagjaid idén')
+        .setAuthor(bodyJSON.Name, message.author.avatarURL, '');
+
+        Object.keys(result).forEach(function (key) { // minden tantargy
+
+            var jegyekOsszeg = 0;
+
+            result[key].forEach(jegy => { // minden jegy
+
+                jegyekOsszeg = jegyekOsszeg + jegy.NumberValue;
+
+/*                 if (jegy.Theme != "") {
                     str1 = str1 + jegy.Value + " | " + jegy.Theme  + " | " + jegy.CreatingTime.substr(0, 10) + "\n";
                 } else {
                     str1 = str1 + jegy.Value + " | " + jegy.CreatingTime.substr(0, 10) + "\n";
-                }
-            });
-            jegyekEmbed.addField(key, str1)  
-        })
-        jegyekEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
+                } */
+            }); 
 
-    message.channel.send(jegyekEmbed);
+            str2 = "Átlag: " + (jegyekOsszeg / Object.keys(result[key]).length).toString().substr(0,3);
+            atlagEmbed.addField(key, str2);
+        });
+
+        atlagEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
+
+    message.channel.send(atlagEmbed);
 }
 
 function doCommand(message, args, commandToDo) {
@@ -351,7 +360,7 @@ function doCommand(message, args, commandToDo) {
                         //console.log(jegyekstr);
                         //sendJegyek(message, obj);
 
-                        eval(commandToDo + "(message, args, obj)")
+                        eval(commandToDo + "(message, args, obj)");
                     } else {
                         message.channel.send(jegyekstr);
                         refreshToken(message, args, "doCommand", commandToDo);
@@ -389,6 +398,10 @@ client.on('message', message => {
         doCommand(message, args, "sendJegyek");
     }
 
+    if (command === 'atlag') {
+        doCommand(message, args, "sendAtlag");
+    }
+
     if (command === 'refresh') {
         refreshToken(message, args);
     }
@@ -396,10 +409,5 @@ client.on('message', message => {
     if (command === 'logout') {
         logout(message, args);
     }
-    
-/*     if (command === 'getcredentials') {
-        getUserCredentials(message.author);
-    } */
 
-    // Több command...
 });
