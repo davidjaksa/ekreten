@@ -20,7 +20,7 @@ client.login(config['token']);
 
 client.on('ready', () => {
     console.log('Sikeres betöltés!');     
-    //nameChange();
+    nameChange();
 });
 
 process.on('SIGINT', function() {
@@ -58,12 +58,13 @@ function mentionUser (user) {
 }
 
 async function nameChange () {
-    while (1) {
+/*     while (1) {
         client.user.setActivity("CultureGeeks", {type: "WATCHING"})
         await sleep(5000);
         client.user.setActivity("with Gyula", {type: "PLAYING"})
         await sleep(5000);
-    }
+    } */
+    client.user.setActivity("davidjaksa.com", {type: "WATCHING"})
 }
 
 /*---------------------------------------------------------------------*/
@@ -208,13 +209,13 @@ function refreshToken(message, args) {
 
                 res.on('end',function(){
                     var bodyJson = JSON.parse(str345);
+                    console.log(str345);
 
                     pool.getConnection(function(err, connection) {
-                        connection.query("UPDATE users SET access_token = '"+ bodyJson["access_token"] +"' WHERE dcid = "+message.author.id);
+                        connection.query("UPDATE users SET access_token = '"+ bodyJson["access_token"] +"', refresh_token = '"+bodyJson["refresh_token"]+"' WHERE dcid = "+message.author.id);
                     });
+                    jegyek(message, args);
                 });
-
-                jegyek(message, args);
             });
 
             req.on('error', function(e) {
@@ -316,9 +317,9 @@ function jegyek(message, args) {
                     if (isJsonString(jegyekstr)) {
                         obj=JSON.parse(jegyekstr);
                         sendJegyek(message, obj);
-                } else {
-                        //console.log(jegyekstr);
-                        refreshToken(message, args);
+                    } else {
+                        message.channel.send(jegyekstr);
+                        //refreshToken(message, args);
                     }
                 });
 
@@ -353,9 +354,9 @@ client.on('message', message => {
         jegyek(message, args);
     }
 
-/*     if (command === 'refresh') {
+    if (command === 'refresh') {
         refreshToken(message, args);
-    } */
+    }
 
     if (command === 'logout') {
         logout(message, args);
