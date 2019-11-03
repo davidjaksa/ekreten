@@ -16,22 +16,6 @@ let pool = mysql.createPool({
     database: 'admin_dc_kreta'
 });
 
-/* function handleDisconnect() {
-    connection.connect( function onConnect(err) {
-        if (err) {
-            setTimeout(handleDisconnect, 10000);
-            //console.log(err);
-        }
-    });
-}
-
-connection.on('error', function onError(err) {
-    handleDisconnect();
-    console.log(err);
-});
-
-handleDisconnect(); */
-
 client.login(config['token']);
 
 client.on('ready', () => {
@@ -260,11 +244,6 @@ function logout(message, args) {
 }
 
 function sendJegyek(message, bodyJSON){
-/*     uzenet = "";
-    bodyJSON.Evaluations.forEach(jegy => {
-        uzenet = uzenet + jegy.Subject + "\n" + jegy.Value + "\n\n"
-    });
-    message.channel.send(uzenet); */
 
     result = bodyJSON.Evaluations.reduce(function (r, a) {
         r[a.Subject] = r[a.Subject] || [];
