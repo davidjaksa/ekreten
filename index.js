@@ -169,7 +169,7 @@ function loginUser(message, args) {
     });
 }
 
-function refreshToken(message, args) {
+function refreshToken(message, args, functionname, commandToDo) {
     getUserCredentials(message.author, function (result) {
         if (JSON.stringify(result) == "[]") {
             //message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
@@ -209,12 +209,15 @@ function refreshToken(message, args) {
 
                 res.on('end',function(){
                     var bodyJson = JSON.parse(str345);
-                    console.log(str345);
+                    //console.log(str345);
 
                     pool.getConnection(function(err, connection) {
                         connection.query("UPDATE users SET access_token = '"+ bodyJson["access_token"] +"', refresh_token = '"+bodyJson["refresh_token"]+"' WHERE dcid = "+message.author.id);
                     });
-                    jegyek(message, args);
+
+                    if (isset(functionname)) {
+                        eval(functionname + "(message, args, "+commandToDo+")");
+                    }
                 });
             });
 
@@ -244,7 +247,7 @@ function logout(message, args) {
     });
 }
 
-function sendJegyek(message, bodyJSON){
+function sendJegyek(message, args, bodyJSON){
 
     result = bodyJSON.Evaluations.reduce(function (r, a) {
         r[a.Subject] = r[a.Subject] || [];
@@ -256,7 +259,7 @@ function sendJegyek(message, bodyJSON){
     const jegyekEmbed = new Discord.RichEmbed()
         .setColor('#1979e0')
         .setTitle('Az idei jegyeid')
-        .setAuthor(message.author.username, message.author.avatarURL, '')
+        .setAuthor(bodyJSON.Name, message.author.avatarURL, '')
         Object.keys(result).forEach(function (key) {
             var str1 = "";
             result[key].forEach(jegy => {
@@ -273,7 +276,36 @@ function sendJegyek(message, bodyJSON){
     message.channel.send(jegyekEmbed);
 }
 
-function jegyek(message, args) {
+function sendAtlag(message, args, bodyJSON){
+
+    result = bodyJSON.Evaluations.reduce(function (r, a) {
+        r[a.Subject] = r[a.Subject] || [];
+        r[a.Subject].push(a);
+        return r;
+    }, Object.create(null));
+    //console.log(result);
+    
+    const jegyekEmbed = new Discord.RichEmbed()
+        .setColor('#1979e0')
+        .setTitle('Az idei jegyeid')
+        .setAuthor(bodyJSON.Name, message.author.avatarURL, '')
+        Object.keys(result).forEach(function (key) {
+            var str1 = "";
+            result[key].forEach(jegy => {
+                if (jegy.Theme != "") {
+                    str1 = str1 + jegy.Value + " | " + jegy.Theme  + " | " + jegy.CreatingTime.substr(0, 10) + "\n";
+                } else {
+                    str1 = str1 + jegy.Value + " | " + jegy.CreatingTime.substr(0, 10) + "\n";
+                }
+            });
+            jegyekEmbed.addField(key, str1)  
+        })
+        jegyekEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
+
+    message.channel.send(jegyekEmbed);
+}
+
+function doCommand(message, args, commandToDo) {
     getUserCredentials(message.author, function (result) {
         if (JSON.stringify(result) == "[]") {
             message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
@@ -316,10 +348,13 @@ function jegyek(message, args) {
                 res.on('end',function(){
                     if (isJsonString(jegyekstr)) {
                         obj=JSON.parse(jegyekstr);
-                        sendJegyek(message, obj);
+                        //console.log(jegyekstr);
+                        //sendJegyek(message, obj);
+
+                        eval(commandToDo + "(message, args, obj)")
                     } else {
                         message.channel.send(jegyekstr);
-                        //refreshToken(message, args);
+                        refreshToken(message, args, "doCommand", commandToDo);
                     }
                 });
 
@@ -351,7 +386,7 @@ client.on('message', message => {
     }
 
     if (command === 'jegyek') {
-        jegyek(message, args);
+        doCommand(message, args, "sendJegyek");
     }
 
     if (command === 'refresh') {
