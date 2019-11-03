@@ -7,6 +7,30 @@ const Discord = require('discord.js');
 const client = new Discord.Client();
 var https = require('https');
 var fs = require('fs');
+var mysql = require('mysql');
+
+let pool = mysql.createPool({
+    host: 'davidjaksa.com',
+    user: 'admin_dc_kreta',
+    password: 'almaspite',
+    database: 'admin_dc_kreta'
+});
+
+/* function handleDisconnect() {
+    connection.connect( function onConnect(err) {
+        if (err) {
+            setTimeout(handleDisconnect, 10000);
+            //console.log(err);
+        }
+    });
+}
+
+connection.on('error', function onError(err) {
+    handleDisconnect();
+    console.log(err);
+});
+
+handleDisconnect(); */
 
 client.login(config['token']);
 
@@ -23,6 +47,10 @@ process.on('SIGINT', function() {
 
 /*---------------------------------------------------------------------*/
                             // FUNCTIONS //
+
+function safeBackSlash (str123) {
+    str123.replace('/', '//');
+}
 
 function sleep (milliseconds) {
     return new Promise(resolve => setTimeout(resolve, milliseconds))
@@ -56,135 +84,179 @@ async function nameChange () {
 
 /*---------------------------------------------------------------------*/
 
-function isJsonString(str) {
+function isJsonString(str321) {
     try {
-        JSON.parse(str);
+        JSON.parse(str321);
     } catch (e) {
         return false;
     }
     return true;
 }
 
+function getUserCredentials(user, callback) {
+
+    pool.getConnection(function(err, connection) {
+        connection.query("SELECT * FROM users WHERE dcid = ?", [user.id], function (err, result, fields) {
+            //console.log(user.id);
+            if (err) throw err;
+            //console.log(result);
+            callback(result);
+        });
+    });
+}
+
 function loginUser(message, args) {
-    var tokenfile = JSON.parse(fs.readFileSync('token.json', 'utf8'));    
-    if (tokenfile.hasOwnProperty('refresh_token')) { message.channel.send('Már be vagy jelentkezve!\nKijelentkezéshez használd a `:logout` parancsot!'); return; }
 
-    if (args.length != 3) { message.channel.send('Hibásan megadott paraméterek!\n`:login <felhasznalonev> <jelszo> <intezmenyid>`'); return; }
+    message.delete();
 
-    var URL = args[2] + ".e-kreta.hu";
-    var PATH = "/idp/api/v1/Token";
-
-    var postData = "institute_code=" + args[2] + "&userName="+args[0]+"&password="+args[1]+"&grant_type=password&client_id=919e0c1c-76a2-4646-a2fb-7085bbbf3c56";
-
-    var options = {
-        host: URL,
-        port: 443,
-        path: PATH,
-        method: 'POST',
-        ecdhCurve: 'auto', 
-        headers: {
-            'Content-Length': postData.length,
-            'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
-        }
-    };
-
-    var req = https.request(options, function(res) {
-        res.setEncoding('utf8');
-        //console.log(res.statusCode);
-
-        if (res.statusCode != 200) {
-            //process.exit()
-            
-            message.channel.send('Hiba történt a bejelentkezés során!');
+    getUserCredentials(message.author, function (result) {
+        if (JSON.stringify(result) != "[]") {
+            message.channel.send('Már be vagy jelentkezve! Kijelentkezéshez használd a `:logout` parancsot!');
             return;
-        }
+        } else {
 
-        message.channel.send('Sikeres bejelentkezés!');
+            if (args.length != 3) { message.channel.send('Hibásan megadott paraméterek!\n`:login <felhasznalonev> <jelszo> <intezmenyid>`'); return; }
 
-        res.on('data', function(body) {
-            var bodyJson = JSON.parse(body);
+            var URL = args[2] + ".e-kreta.hu";
+            var PATH = "/idp/api/v1/Token";
 
-            var newJson = {
-                "institute_code": args[2],
-                "access_token": bodyJson["access_token"],
-                "expires_in": bodyJson["expires_in"],
-                "refresh_token": bodyJson["refresh_token"],
+            var postData = "institute_code=" + args[2] + "&userName="+args[0]+"&password="+args[1]+"&grant_type=password&client_id=919e0c1c-76a2-4646-a2fb-7085bbbf3c56";
+
+            var options = {
+                host: URL,
+                port: 443,
+                path: PATH,
+                method: 'POST',
+                ecdhCurve: 'auto', 
+                headers: {
+                    'Content-Length': postData.length,
+                    'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+                }
             };
 
-            fs.writeFile('token.json', JSON.stringify(newJson), 'utf-8', function() {});
-            //console.log("\n" + newJson + "\n");
+            var req = https.request(options, function(res) {
+                res.setEncoding('utf8');
+                //console.log(res.statusCode);
 
-        });
+                if (res.statusCode != 200) {
+                    //process.exit()
+                    
+                    message.channel.send('Hiba történt a bejelentkezés során!');
+                    return;
+                }
 
-        message.delete();
+                message.channel.send('Sikeres bejelentkezés!');
+
+                res.on('data', function(body) {
+
+
+                });
+
+                var str234='';
+                res.on('data',function(chunk){
+                    str234+=chunk;
+                });
+
+
+                res.on('end',function(){
+                    var bodyJson = JSON.parse(str234);
+
+                    var refresh_token = bodyJson["refresh_token"].toString().replace('\\', '\\\\');
+                    var access_token = bodyJson["access_token"].toString().replace('\\', '\\\\');
+
+
+                    pool.getConnection(function(err, connection) {
+                        connection.query("INSERT INTO users(dcid, institute_code, refresh_token, access_token, expires_in) VALUES("+message.author.id+", '"+args[2]+"', '"+refresh_token+"', '"+access_token+"', "+bodyJson["expires_in"]+" )");
+                    });
+
+                    //console.log("\n" + newJson + "\n");
+                });
+            });
+
+            req.on('error', function(e) {
+                console.log('problem with request: ' + e.message);
+            });
+
+            // write some data to the request body
+            req.write(postData);
+            req.end();
+        }
     });
-
-    req.on('error', function(e) {
-        console.log('problem with request: ' + e.message);
-    });
-
-    // write some data to the request body
-    req.write(postData);
-    req.end();
 }
 
 function refreshToken(message, args) {
-    var settings = JSON.parse(fs.readFileSync('token.json', 'utf8'));
-    var URL = settings["institute_code"] + ".e-kreta.hu";
-    var PATH = "/idp/api/v1/Token";
+    getUserCredentials(message.author, function (result) {
+        if (JSON.stringify(result) == "[]") {
+            //message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
+            return;
+        } else {
+            var settings = result[0];
+            var URL = settings["institute_code"] + ".e-kreta.hu";
+            var PATH = "/idp/api/v1/Token";
 
-    var postData = "institute_code=" + settings["institute_code"] + "&refresh_token=" + settings["refresh_token"] + "&grant_type=refresh_token&client_id=919e0c1c-76a2-4646-a2fb-7085bbbf3c56";
+            var postData = "institute_code=" + settings["institute_code"] + "&refresh_token=" + settings["refresh_token"] + "&grant_type=refresh_token&client_id=919e0c1c-76a2-4646-a2fb-7085bbbf3c56";
 
-    var options = {
-        host: URL,
-        port: 443,
-        path: PATH,
-        method: 'POST',
-        ecdhCurve: 'auto', //secp384r1
-        headers: {
-            'Content-Length': postData.length,
-            'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
-        }
-    };
-
-    var req = https.request(options, function(res) {
-        res.setEncoding('utf8');
-        console.log(res.statusCode);
-
-        if (res.statusCode != 200) {
-            
-        }
-
-        res.on('data', function(body) {
-            var bodyJson = JSON.parse(body);
-
-            var newJson = {
-                "institute_code": settings["institute_code"],
-                "access_token": bodyJson["access_token"],
-                "expires_in": bodyJson["expires_in"],
-                "refresh_token": bodyJson["refresh_token"],
+            var options = {
+                host: URL,
+                port: 443,
+                path: PATH,
+                method: 'POST',
+                ecdhCurve: 'auto', //secp384r1
+                headers: {
+                    'Content-Length': postData.length,
+                    'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+                }
             };
 
-            fs.writeFile('token.json', JSON.stringify(newJson), 'utf-8', function() {});
-            
-        });
+            var req = https.request(options, function(res) {
+                res.setEncoding('utf8');
+                console.log(res.statusCode);
 
-        jegyek(message, args);
+                if (res.statusCode != 200) {
+                    
+                }
+
+                var str345='';
+                res.on('data',function(chunk){
+                    str345+=chunk;
+                });
+
+
+                res.on('end',function(){
+                    var bodyJson = JSON.parse(str345);
+
+                    pool.getConnection(function(err, connection) {
+                        connection.query("UPDATE users SET access_token = '"+ bodyJson["access_token"] +"' WHERE dcid = "+message.author.id);
+                    });
+                });
+
+                jegyek(message, args);
+            });
+
+            req.on('error', function(e) {
+            console.log('problem with request: ' + e.message);
+            });
+
+            // write some data to the request body
+            req.write(postData);
+            req.end();
+        }
     });
-
-    req.on('error', function(e) {
-    console.log('problem with request: ' + e.message);
-    });
-
-    // write some data to the request body
-    req.write(postData);
-    req.end();
-
 }
 
 function logout(message, args) {
-    fs.writeFile('token.json', "{}", 'utf-8', function() {});
-    message.channel.send('Sikeres kijelentkezés!');
+
+    getUserCredentials(message.author, function (result) {
+        if (JSON.stringify(result) == "[]") {
+            message.channel.send('Nem vagy bejelentkezve! Bejelentkezéshez használd a `:login` parancsot!');
+            return;
+        } else {
+            pool.getConnection(function(err, connection) {
+                connection.query("DELETE FROM users WHERE dcid = ?", [message.author.id]);
+                message.channel.send('Sikeres kijelentkezés!');
+            });
+        }
+    });
 }
 
 function sendJegyek(message, bodyJSON){
@@ -222,59 +294,67 @@ function sendJegyek(message, bodyJSON){
 }
 
 function jegyek(message, args) {
-    var tokenfile = JSON.parse(fs.readFileSync('token.json', 'utf8'));    
-    if (!tokenfile.hasOwnProperty('refresh_token')) { message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!'); return; }
-
-    if (args.length != 0) { message.channel.send('Hibásan megadott paraméterek!\n`:jegyek`'); return; }
-
-    var URL = tokenfile["institute_code"]+".e-kreta.hu";
-    var PATH = "/mapi/api/v1/Student";
-
-    var options = {
-        host: URL,
-        port: 443,
-        path: PATH,
-        method: 'GET',
-        ecdhCurve: 'auto', //secp384r1
-        headers: {
-            //'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
-            'Authorization': 'Bearer ' + tokenfile["access_token"]
-        }
-    };
-
-    var req = https.request(options, function(res) {
-        res.setEncoding('utf8');
-
-        if (res.statusCode == 401) {
-            refreshToken();
-        }
-
-        // On data
-        var str='';
-        res.on('data',function(chunk){
-            str+=chunk;
-        });
-
-
-        res.on('end',function(){
-            if (isJsonString(str)) {
-                obj=JSON.parse(str);
-                sendJegyek(message, obj);
+    getUserCredentials(message.author, function (result) {
+        if (JSON.stringify(result) == "[]") {
+            message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
+            return;
         } else {
-                refreshToken(message, args);
-            }
-        });
+            //console.log(result[0]);
+            var tokenfile = result[0];    
 
+            if (args.length != 0) { message.channel.send('Hibásan megadott paraméterek!\n`:jegyek`'); return; }
+
+            var URL = tokenfile["institute_code"]+".e-kreta.hu";
+            var PATH = "/mapi/api/v1/Student";
+
+            var options = {
+                host: URL,
+                port: 443,
+                path: PATH,
+                method: 'GET',
+                ecdhCurve: 'auto', //secp384r1
+                headers: {
+                    //'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+                    'Authorization': 'Bearer ' + tokenfile["access_token"]
+                }
+            };
+
+            var req = https.request(options, function(res) {
+                res.setEncoding('utf8');
+
+/*                 if (res.statusCode == 401) {
+                    refreshToken();
+                } */
+
+                // On data
+                var jegyekstr='';
+                res.on('data',function(chunk){
+                    jegyekstr+=chunk;
+                });
+
+
+                res.on('end',function(){
+                    if (isJsonString(jegyekstr)) {
+                        obj=JSON.parse(jegyekstr);
+                        sendJegyek(message, obj);
+                } else {
+                        //console.log(jegyekstr);
+                        refreshToken(message, args);
+                    }
+                });
+
+            });
+
+
+            req.on('error', function(e) {
+                console.log('problem with request: ' + e.message);
+            });
+
+            // write some data to the request body
+            req.write('\n');
+            req.end();
+        }
     });
-
-
-    req.on('error', function(e) {
-        console.log('problem with request: ' + e.message);
-    });
-
-    // write some data to the request body
-    req.write('\n');
-    req.end();
 }
 
 /*---------------------------------------------------------------------*/
@@ -294,12 +374,17 @@ client.on('message', message => {
         jegyek(message, args);
     }
 
-    if (command === 'refresh') {
+/*     if (command === 'refresh') {
         refreshToken(message, args);
-    }
+    } */
 
     if (command === 'logout') {
         logout(message, args);
     }
-	// Több command...
+    
+/*     if (command === 'getcredentials') {
+        getUserCredentials(message.author);
+    } */
+
+    // Több command...
 });
