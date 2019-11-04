@@ -169,7 +169,7 @@ function loginUser(message, args) {
     });
 }
 
-function refreshToken(message, args, functionname, commandToDo) {
+function refreshToken(message, args, evalCommand) {
     getUserCredentials(message.author, function (result) {
         if (JSON.stringify(result) == "[]") {
             //message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
@@ -198,25 +198,28 @@ function refreshToken(message, args, functionname, commandToDo) {
                 console.log(res.statusCode);
 
                 if (res.statusCode != 200) {
-                    
+                    message.channel.send('Hiba történt az hozzáférési token lekérésekor!');
+                    return;
                 }
 
-                var str345='';
+                var refreshstr='';
+
                 res.on('data',function(chunk){
-                    str345+=chunk;
+                    refreshstr+=chunk;
                 });
 
 
                 res.on('end',function(){
-                    var bodyJson = JSON.parse(str345);
-                    //console.log(str345);
+                    console.log(refreshstr)
+                    var bodyJson = JSON.parse(refreshstr);
+                    //console.log(refreshstr);
 
                     pool.getConnection(function(err, connection) {
                         connection.query("UPDATE users SET access_token = '"+ bodyJson["access_token"] +"', refresh_token = '"+bodyJson["refresh_token"]+"' WHERE dcid = "+message.author.id);
                     });
 
-                    if (isset(functionname)) {
-                        eval(doCommand+"(message, args, "+commandToDo+")");
+                    if (isset(evalCommand)) {
+                        eval(evalCommand);
                     }
                 });
             });
@@ -342,7 +345,7 @@ function doCommand(message, args, commandToDo) {
                         eval(commandToDo + "(message, args, obj)");
                     } else {
                         message.channel.send(jegyekstr);
-                        refreshToken(message, args, "doCommand", commandToDo);
+                        refreshToken(message, args, "doCommand(message, args, "+commandToDo+")");
                     }
                 });
 
