@@ -1,7 +1,5 @@
 /* Konfiguráció */
-const config = [];
-config['token'] = 'NjM5MTYzMjA2MzIxMDQ1NTI0.XbnRVg.OeQ4wOMqJHHFhsUIXCcoUj8xy90'; // Bot token
-config['prefix'] = ':'; // Parancs prefix
+var config = require('./config.json');
 
 const Discord = require('discord.js');
 const client = new Discord.Client();
@@ -16,7 +14,7 @@ let pool = mysql.createPool({
     database: 'admin_dc_kreta'
 });
 
-client.login(config['token']);
+client.login(config.token);
 
 client.on('ready', () => {
     console.log('Sikeres betöltés!');     
@@ -376,10 +374,10 @@ function doCommand(message, args, commandToDo) {
 /*---------------------------------------------------------------------*/
 
 client.on('message', message => {
-    if (!message.content.startsWith(config['prefix']) || message.author.bot) return;
+    if (!message.content.startsWith(config.prefix) || message.author.bot) return;
     //if (message.channel.type != "text") return;
     
-	const args = message.content.slice(config['prefix'].length).split(/ +/);
+	const args = message.content.slice(config.prefix.length).split(/ +/);
     const command = args.shift().toLowerCase();
 
     if (command === 'login') {
