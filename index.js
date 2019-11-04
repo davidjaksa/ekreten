@@ -67,6 +67,15 @@ async function nameChange () {
     client.user.setActivity("davidjaksa.com", {type: "WATCHING"})
 }
 
+async function delayDelete (message, time) {
+    if (isset(time)) {
+        await sleep(time);
+    } else {
+        await sleep(5000);
+    }
+    message.delete();
+}
+
 /*---------------------------------------------------------------------*/
 
 function isJsonString(str321) {
@@ -92,7 +101,7 @@ function getUserCredentials(user, callback) {
 
 function loginUser(message, args) {
 
-    message.delete();
+    //message.delete();
 
     getUserCredentials(message.author, function (result) {
         if (JSON.stringify(result) != "[]") {
@@ -130,7 +139,7 @@ function loginUser(message, args) {
                     return;
                 }
 
-                message.channel.send('Sikeres bejelentkezés!');
+                message.channel.send('Sikeres bejelentkezés! :white_check_mark: \n:warning: Biztonsági okok miatt arra kérünk, hogy **töröld ki** a bejelentkezési adataidat tartalmazó üzeneted. :warning: ');
 
                 res.on('data', function(body) {
 
@@ -283,8 +292,8 @@ function sendJegyek(message, args, bodyJSON){
 function sendAtlag(message, args, bodyJSON){
     const atlagEmbed = new Discord.RichEmbed()
         .setColor('#1979e0')
-        .setTitle('Az átlagjaid idén')
-        .setAuthor(bodyJSON.Name, message.author.avatarURL, '');
+        //.setTitle('Az átlagjaid idén')
+        .setAuthor(bodyJSON.Name + " - Átlagok", message.author.avatarURL, '');
 
         Object.values(bodyJSON.SubjectAverages).forEach(tantargy => {
             str2 = "Átlag: " + tantargy.Value;
@@ -297,6 +306,7 @@ function sendAtlag(message, args, bodyJSON){
 }
 
 function doCommand(message, args, commandToDo) {
+    message.delete();
     getUserCredentials(message.author, function (result) {
         if (JSON.stringify(result) == "[]") {
             message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
@@ -373,20 +383,38 @@ client.on('message', message => {
     const command = args.shift().toLowerCase();
 
     if (command === 'login') {
+        if (message.channel.type != "dm") {
+            message.channel.send('Ezt a parancsot csak privátban használhatod! :no_entry:')
+            .then(message => delayDelete(message));
+
+            message.delete();
+            return;
+        }
         loginUser(message, args);
     }
 
     if (command === 'jegyek') {
+        if (message.channel.type != "dm") {
+            message.channel.send('Ezt a parancsot csak privátban használhatod! :no_entry:')
+            .then(message => delayDelete(message));
+
+            message.delete();
+            return;
+        }
         doCommand(message, args, "sendJegyek");
     }
+
+/*     if (command === 'jegyek') {
+        doCommand(message, args, "sendJegyek");
+    } */
 
     if (command === 'atlag') {
         doCommand(message, args, "sendAtlag");
     }
 
-    if (command === 'refresh') {
+/*     if (command === 'refresh') {
         refreshToken(message, args);
-    }
+    } */
 
     if (command === 'logout') {
         logout(message, args);
