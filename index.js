@@ -7,12 +7,7 @@ var https = require('https');
 var fs = require('fs');
 var mysql = require('mysql');
 
-let pool = mysql.createPool({
-    host: 'davidjaksa.com',
-    user: 'admin_dc_kreta',
-    password: 'almaspite',
-    database: 'admin_dc_kreta'
-});
+let pool = mysql.createPool(config.mysql);
 
 client.login(config.token);
 

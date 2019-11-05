@@ -1,4 +1,10 @@
 {
     "prefix": ":",
-    "token": "insert-token-here"
+    "token": "insert-token-here",
+    "mysql": {
+        "host": "hostname",
+        "user": "username",
+        "password": "password",
+        "database": "database"
+    }
 }
