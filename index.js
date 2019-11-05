@@ -202,7 +202,7 @@ function refreshToken(message, callback) {
 
             var req = https.request(options, function(res) {
                 res.setEncoding('utf8');
-                console.log(res.statusCode);
+                //console.log(res.statusCode);
 
                 if (res.statusCode != 200) {
                     message.channel.send('Hiba történt az hozzáférési token lekérésekor!');
@@ -217,7 +217,7 @@ function refreshToken(message, callback) {
 
 
                 res.on('end',function(){
-                    console.log(refreshstr)
+                    //console.log(refreshstr)
                     var bodyJson = JSON.parse(refreshstr);
                     //console.log(refreshstr);
 
