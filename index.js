@@ -80,6 +80,17 @@ function getUserCredentials(user, callback) {
     });
 }
 
+function getGuildNotificationChannel(guild, callback) {
+    pool.getConnection(function(err, connection) {
+        connection.query("SELECT * FROM guilds WHERE guildid = ?", [guild.id], function (err, result, fields) {
+            if (err) throw err;
+            var ekreten_channel = client.channels.find("id", result[0].channelid.toString());
+
+            callback(ekreten_channel);
+        });
+    });
+}
+
 function loginUser(message, args) {
 
     getUserCredentials(message.author, function (result) {
@@ -272,13 +283,12 @@ function sendAtlag(message, args, bodyJSON){
 }
 
 function doCommand(message, args, commandToDo) {
-    message.delete();
     getUserCredentials(message.author, function (result) {
-        refreshToken(message, function (access_token) {
-            if (JSON.stringify(result) == "[]") {
-                message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
-                return;
-            } else {
+        if (JSON.stringify(result) == "[]") {
+            message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
+            return;
+        } else {
+            refreshToken(message, function (access_token) {
                 var tokenfile = result[0];    
     
                 if (args.length != 0) { message.channel.send('Hibásan megadott paraméterek!\n`:jegyek`'); return; }
@@ -328,7 +338,63 @@ function doCommand(message, args, commandToDo) {
                 // write some data to the request body
                 req.write('\n');
                 req.end();
-            }
+            });
+        }
+        
+    });
+}
+
+function ertesitesek(message, args) {
+    getGuildNotificationChannel(message.guild, function (channel) {
+        if (channel == null) {
+            delayDelete(message, 10000);
+            message.reply("az értesítések szobája nem található. :no_entry:").then(replyMessage => {
+                delayDelete(replyMessage, 10000);
+            });
+            return;
+        }
+        if ((args.length != 1) || (args[0] != "be" && args[0] != "ki")) {
+            delayDelete(message, 10000);
+            message.reply("hibás paramétereket adtál meg! `:ertesitesek <be/ki>`").then(replyMessage => {
+                delayDelete(replyMessage, 10000);
+            });
+            return;
+        }
+
+        pool.getConnection(function(err, connection) {
+            connection.query("SELECT * FROM notifications WHERE dcid = ? AND guildid = ?", [message.author.id, message.guild.id], function (err, result, fields) {
+                if (err) throw err;
+                   
+                var notification_state = result.length != 0;
+                
+                if (args[0] == "ki") {
+                    if (notification_state == false) {
+                        delayDelete(message, 10000);
+                        message.reply("az értesítéseid nem voltak bekapcsolva ezen a szerveren! :x:").then(replyMessage => {
+                            delayDelete(replyMessage, 10000);
+                        });
+                    } else {
+                        pool.getConnection(function(err, connection) {
+                            connection.query("DELETE FROM notifications WHERE dcid = ? AND guildid = ?", [message.author.id, message.guild.id]);
+                            message.reply("az értesítéseket ezen a szerveren sikeresen kikapcsoltad! :white_check_mark:");
+                        });
+                    }
+                } else if (args[0] == "be") {
+                    if (notification_state == true) {
+                        delayDelete(message, 10000);
+                        message.reply("az értesítéseid már be vannak kapcsolva ezen a szerveren! :x:").then(replyMessage => {
+                            delayDelete(replyMessage, 10000);
+                        });
+                    } else {
+                        pool.getConnection(function(err, connection) {
+                            connection.query("INSERT INTO notifications(dcid, guildid) VALUES("+message.author.id+", "+message.guild.id+")");
+                            message.reply("az értesítéseket ezen a szerveren sikeresen bekapcsoltad! :white_check_mark:");
+                        });
+                    }
+                } else {
+                    message.delete(); // Ha jönnek a zűrlények
+                }
+            });
         });
     });
 }
@@ -365,8 +431,8 @@ client.on('message', message => {
         doCommand(message, args, "sendJegyek");
     }
 
-    if (command === 'ertesites') {
-        ertesites(message, args);
+    if (command === 'ertesitesek') {
+        ertesitesek(message, args);
     }
 
     if (command === 'atlag') {
@@ -383,7 +449,7 @@ client.on("guildCreate", guild => {
 
     if (find_result = guild.channels.find("name","ekreten")) {
         pool.getConnection(function(err, connection) {
-            connection.query("INSERT INTO channels(guildid, channelid) VALUES("+guild.id+", "+find_result.id+")");
+            connection.query("INSERT INTO guilds(guildid, channelid) VALUES("+guild.id+", "+find_result.id+")");
         });
 
         guild.systemChannel.send("Köszi a meghívást! :smile:\nMegtaláltam az <#"+find_result.id+"> nevű csatornát, az értesítések ott fognak megjelenni! :white_check_mark:");
@@ -398,7 +464,7 @@ client.on("guildCreate", guild => {
         }
 
         pool.getConnection(function(err, connection) {
-            connection.query("INSERT INTO channels(guildid, channelid) VALUES("+guild.id+", "+channel.id+")");
+            connection.query("INSERT INTO guilds(guildid, channelid) VALUES("+guild.id+", "+channel.id+")");
         });
         guild.systemChannel.send("Köszi a meghívást! :smile:\nLétrehoztam az <#"+channel.id+"> nevű csatornát az értesítéseknek! :white_check_mark:");
     });
@@ -406,6 +472,6 @@ client.on("guildCreate", guild => {
 
 client.on("guildDelete", guild => {
     pool.getConnection(function(err, connection) {
-        connection.query("DELETE FROM channels WHERE guildid = ?", [guild.id]);
+        connection.query("DELETE FROM guilds WHERE guildid = ?", [guild.id]);
     });
 })
