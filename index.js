@@ -344,7 +344,7 @@ client.on('message', message => {
 
     if (command === 'login') {
         if (message.channel.type != "dm") {
-            message.channel.send('Ezt a parancsot csak privátban használhatod! :no_entry:')
+            message.reply('ezt a parancsot csak privátban használhatod! :no_entry:')
             .then(message => delayDelete(message));
 
             message.delete();
@@ -355,13 +355,18 @@ client.on('message', message => {
 
     if (command === 'jegyek') {
         if (message.channel.type != "dm") {
-            message.channel.send('Ezt a parancsot csak privátban használhatod! :no_entry:')
-            .then(message => delayDelete(message));
-
-            message.delete();
+            message.reply('ezt a parancsot csak privátban használhatod! :no_entry:')
+            .then(errorMessage => {
+                delayDelete(message);
+                delayDelete(errorMessage);
+            });
             return;
         }
         doCommand(message, args, "sendJegyek");
+    }
+
+    if (command === 'ertesites') {
+        ertesites(message, args);
     }
 
     if (command === 'atlag') {
@@ -373,3 +378,34 @@ client.on('message', message => {
     }
 
 });
+
+client.on("guildCreate", guild => {
+
+    if (find_result = guild.channels.find("name","ekreten")) {
+        pool.getConnection(function(err, connection) {
+            connection.query("INSERT INTO channels(guildid, channelid) VALUES("+guild.id+", "+find_result.id+")");
+        });
+
+        guild.systemChannel.send("Köszi a meghívást! :smile:\nMegtaláltam az <#"+find_result.id+"> nevű csatornát, az értesítések ott fognak megjelenni! :white_check_mark:");
+
+        return;
+    }
+
+    guild.createChannel("ekreten", "text").then(channel => {
+        if (!channel) {
+            message.channel.send('Hiba történt a `#ekreten` nevű csatorna létrehozása közben!');
+            return;
+        }
+
+        pool.getConnection(function(err, connection) {
+            connection.query("INSERT INTO channels(guildid, channelid) VALUES("+guild.id+", "+channel.id+")");
+        });
+        guild.systemChannel.send("Köszi a meghívást! :smile:\nLétrehoztam az <#"+channel.id+"> nevű csatornát az értesítéseknek! :white_check_mark:");
+    });
+});
+
+client.on("guildDelete", guild => {
+    pool.getConnection(function(err, connection) {
+        connection.query("DELETE FROM channels WHERE guildid = ?", [guild.id]);
+    });
+})
