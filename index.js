@@ -25,10 +25,6 @@ process.on('SIGINT', function() {
 /*---------------------------------------------------------------------*/
                             // FUNCTIONS //
 
-function safeBackSlash (str123) {
-    str123.replace('/', '//');
-}
-
 function sleep (milliseconds) {
     return new Promise(resolve => setTimeout(resolve, milliseconds))
 }
@@ -51,12 +47,6 @@ function mentionUser (user) {
 }
 
 async function nameChange () {
-/*     while (1) {
-        client.user.setActivity("CultureGeeks", {type: "WATCHING"})
-        await sleep(5000);
-        client.user.setActivity("with Gyula", {type: "PLAYING"})
-        await sleep(5000);
-    } */
     client.user.setActivity("davidjaksa.com", {type: "WATCHING"})
 }
 
@@ -84,17 +74,13 @@ function getUserCredentials(user, callback) {
 
     pool.getConnection(function(err, connection) {
         connection.query("SELECT * FROM users WHERE dcid = ?", [user.id], function (err, result, fields) {
-            //console.log(user.id);
             if (err) throw err;
-            //console.log(result);
             callback(result);
         });
     });
 }
 
 function loginUser(message, args) {
-
-    //message.delete();
 
     getUserCredentials(message.author, function (result) {
         if (JSON.stringify(result) != "[]") {
@@ -123,11 +109,8 @@ function loginUser(message, args) {
 
             var req = https.request(options, function(res) {
                 res.setEncoding('utf8');
-                //console.log(res.statusCode);
 
-                if (res.statusCode != 200) {
-                    //process.exit()
-                    
+                if (res.statusCode != 200) {                    
                     message.channel.send('Hiba történt a bejelentkezés során!');
                     return;
                 }
@@ -156,7 +139,6 @@ function loginUser(message, args) {
                         connection.query("INSERT INTO users(dcid, institute_code, refresh_token, access_token, expires_in) VALUES("+message.author.id+", '"+args[2]+"', '"+refresh_token+"', '"+access_token+"', "+bodyJson["expires_in"]+" )");
                     });
 
-                    //console.log("\n" + newJson + "\n");
                 });
             });
 
@@ -174,7 +156,6 @@ function loginUser(message, args) {
 function refreshToken(message, callback) {
     getUserCredentials(message.author, function (result) {
         if (JSON.stringify(result) == "[]") {
-            //message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
             return;
         } else {
             var settings = result[0];
@@ -188,7 +169,7 @@ function refreshToken(message, callback) {
                 port: 443,
                 path: PATH,
                 method: 'POST',
-                ecdhCurve: 'auto', //secp384r1
+                ecdhCurve: 'auto',
                 headers: {
                     'Content-Length': postData.length,
                     'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
@@ -197,7 +178,6 @@ function refreshToken(message, callback) {
 
             var req = https.request(options, function(res) {
                 res.setEncoding('utf8');
-                //console.log(res.statusCode);
 
                 if (res.statusCode != 200) {
                     message.channel.send('Hiba történt az hozzáférési token lekérésekor!');
@@ -212,9 +192,7 @@ function refreshToken(message, callback) {
 
 
                 res.on('end',function(){
-                    //console.log(refreshstr)
                     var bodyJson = JSON.parse(refreshstr);
-                    //console.log(refreshstr);
 
                     pool.getConnection(function(err, connection) {
                         connection.query("UPDATE users SET access_token = '"+ bodyJson["access_token"] +"', refresh_token = '"+bodyJson["refresh_token"]+"' WHERE dcid = "+message.author.id);
@@ -256,7 +234,6 @@ function sendJegyek(message, args, bodyJSON){
         r[a.Subject].push(a);
         return r;
     }, Object.create(null));
-    //console.log(result);
     
     const jegyekEmbed = new Discord.RichEmbed()
         .setColor('#1979e0')
@@ -282,7 +259,6 @@ function sendJegyek(message, args, bodyJSON){
 function sendAtlag(message, args, bodyJSON){
     const atlagEmbed = new Discord.RichEmbed()
         .setColor('#1979e0')
-        //.setTitle('Az átlagjaid idén')
         .setAuthor(bodyJSON.Name + " - Átlagok", message.author.avatarURL, '');
 
         Object.values(bodyJSON.SubjectAverages).forEach(tantargy => {
@@ -303,7 +279,6 @@ function doCommand(message, args, commandToDo) {
                 message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
                 return;
             } else {
-                //console.log(result[0]);
                 var tokenfile = result[0];    
     
                 if (args.length != 0) { message.channel.send('Hibásan megadott paraméterek!\n`:jegyek`'); return; }
@@ -318,17 +293,12 @@ function doCommand(message, args, commandToDo) {
                     method: 'GET',
                     ecdhCurve: 'auto', //secp384r1
                     headers: {
-                        //'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
                         'Authorization': 'Bearer ' + access_token
                     }
                 };
     
                 var req = https.request(options, function(res) {
                     res.setEncoding('utf8');
-    
-    /*                 if (res.statusCode == 401) {
-                        refreshToken();
-                    } */
     
                     // On data
                     var jegyekstr='';
@@ -340,8 +310,6 @@ function doCommand(message, args, commandToDo) {
                     res.on('end',function(){
                         if (isJsonString(jegyekstr)) {
                             obj=JSON.parse(jegyekstr);
-                            //console.log(jegyekstr);
-                            //sendJegyek(message, obj);
     
                             eval(commandToDo + "(message, args, obj)");
                         } else {
@@ -396,17 +364,9 @@ client.on('message', message => {
         doCommand(message, args, "sendJegyek");
     }
 
-/*     if (command === 'jegyek') {
-        doCommand(message, args, "sendJegyek");
-    } */
-
     if (command === 'atlag') {
         doCommand(message, args, "sendAtlag");
     }
-
-/*     if (command === 'refresh') {
-        refreshToken(message, args);
-    } */
 
     if (command === 'logout') {
         logout(message, args);
