@@ -4,7 +4,6 @@ var config = require('./config.json');
 const Discord = require('discord.js');
 const client = new Discord.Client();
 var https = require('https');
-var fs = require('fs');
 var mysql = require('mysql');
 
 let pool = mysql.createPool(config.mysql);
@@ -14,6 +13,7 @@ client.login(config.token);
 client.on('ready', () => {
     console.log('Sikeres betöltés!');     
     nameChange();
+    check();
 });
 
 process.on('SIGINT', function() {
@@ -70,10 +70,9 @@ function isJsonString(str321) {
     return true;
 }
 
-function getUserCredentials(user, callback) {
-
+function getUserCredentials(dcid, callback) {
     pool.getConnection(function(err, connection) {
-        connection.query("SELECT * FROM users WHERE dcid = ?", [user.id], function (err, result, fields) {
+        connection.query("SELECT * FROM users WHERE dcid = ?", [dcid], function (err, result, fields) {
             if (err) throw err;
             callback(result);
         });
@@ -93,81 +92,73 @@ function getGuildNotificationChannel(guild, callback) {
 
 function loginUser(message, args) {
 
-    getUserCredentials(message.author, function (result) {
-        if (JSON.stringify(result) != "[]") {
-            message.channel.send('Már be vagy jelentkezve! Kijelentkezéshez használd a `:logout` parancsot!');
-            return;
-        } else {
+    if (args.length != 3) { message.channel.send('Hibásan megadott paraméterek!\n`:login <felhasznalonev> <jelszo> <intezmenyid>`\nIntézményazonosító lista: https://ekreten.davidjaksa.com/intezmeny-lista/'); return; }
 
-            if (args.length != 3) { message.channel.send('Hibásan megadott paraméterek!\n`:login <felhasznalonev> <jelszo> <intezmenyid>`'); return; }
+    var URL = args[2] + ".e-kreta.hu";
+    var PATH = "/idp/api/v1/Token";
 
-            var URL = args[2] + ".e-kreta.hu";
-            var PATH = "/idp/api/v1/Token";
+    var postData = "institute_code=" + args[2] + "&userName="+args[0]+"&password="+args[1]+"&grant_type=password&client_id=919e0c1c-76a2-4646-a2fb-7085bbbf3c56";
 
-            var postData = "institute_code=" + args[2] + "&userName="+args[0]+"&password="+args[1]+"&grant_type=password&client_id=919e0c1c-76a2-4646-a2fb-7085bbbf3c56";
-
-            var options = {
-                host: URL,
-                port: 443,
-                path: PATH,
-                method: 'POST',
-                ecdhCurve: 'auto', 
-                headers: {
-                    'Content-Length': postData.length,
-                    'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
-                }
-            };
-
-            var req = https.request(options, function(res) {
-                res.setEncoding('utf8');
-
-                if (res.statusCode != 200) {                    
-                    message.channel.send('Hiba történt a bejelentkezés során!');
-                    return;
-                }
-
-                message.channel.send('Sikeres bejelentkezés! :white_check_mark: \n:warning: Biztonsági okok miatt arra kérünk, hogy **töröld ki** a bejelentkezési adataidat tartalmazó üzeneted. :warning: ');
-
-                res.on('data', function(body) {
-
-
-                });
-
-                var str234='';
-                res.on('data',function(chunk){
-                    str234+=chunk;
-                });
-
-
-                res.on('end',function(){
-                    var bodyJson = JSON.parse(str234);
-
-                    var refresh_token = bodyJson["refresh_token"].toString().replace('\\', '\\\\');
-                    var access_token = bodyJson["access_token"].toString().replace('\\', '\\\\');
-
-
-                    pool.getConnection(function(err, connection) {
-                        connection.query("INSERT INTO users(dcid, institute_code, refresh_token, access_token, expires_in) VALUES("+message.author.id+", '"+args[2]+"', '"+refresh_token+"', '"+access_token+"', "+bodyJson["expires_in"]+" )");
-                    });
-                    setTimeout(() => {
-                        insertJegyek(message);
-                    }, 1000);
-                });
-            });
-
-            req.on('error', function(e) {
-                console.log('problem with request: ' + e.message);
-            });
-
-            // write some data to the request body
-            req.write(postData);
-            req.end();
+    var options = {
+        host: URL,
+        port: 443,
+        path: PATH,
+        method: 'POST',
+        ecdhCurve: 'auto', 
+        headers: {
+            'Content-Length': postData.length,
+            'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
         }
+    };
+
+    var req = https.request(options, function(res) {
+        res.setEncoding('utf8');
+
+        if (res.statusCode != 200) {                    
+            message.channel.send('Hiba történt a bejelentkezés során!');
+            return;
+        }
+
+        var str234='';
+        res.on('data',function(chunk){
+            str234+=chunk;
+        });
+
+
+        res.on('end',function(){
+            if (!isJsonString(str234)) {
+                message.channel.send('Hiba történt a bejelentkezés közben, kérlek próbáld újra később! :warning:');
+                return;
+            }
+            var bodyJson = JSON.parse(str234);
+
+            var refresh_token = bodyJson["refresh_token"].toString().replace('\\', '\\\\');
+            var access_token = bodyJson["access_token"].toString().replace('\\', '\\\\');
+
+
+            pool.getConnection(function(err, connection) {
+                connection.query("INSERT INTO users(dcid, institute_code, refresh_token, access_token, expires_in) VALUES("+message.author.id+", '"+args[2]+"', '"+refresh_token+"', '"+access_token+"', "+bodyJson["expires_in"]+" )", function (error, results, fields) {
+                    if (error) throw error;
+
+                    insertJegyek(message, true);
+                });
+            });
+
+            message.channel.send('Sikeres bejelentkezés! :white_check_mark: \n:warning: Biztonsági okok miatt arra kérünk, hogy **töröld ki** a bejelentkezési adataidat tartalmazó üzeneted. :warning: ');
+        });
     });
+
+    req.on('error', function(e) {
+        console.log('problem with request: ' + e.message);
+    });
+
+    // write some data to the request body
+    req.write(postData);
+    req.end();
 }
 
-function refreshToken(message, callback) {
-    getUserCredentials(message.author, function (result) {
+function refreshToken(dcid, callback) {
+    getUserCredentials(dcid, function (result) {
         if (JSON.stringify(result) == "[]") {
             return;
         } else {
@@ -193,7 +184,6 @@ function refreshToken(message, callback) {
                 res.setEncoding('utf8');
 
                 if (res.statusCode != 200) {
-                    message.channel.send('Hiba történt az hozzáférési token lekérésekor!');
                     return;
                 }
 
@@ -208,7 +198,7 @@ function refreshToken(message, callback) {
                     var bodyJson = JSON.parse(refreshstr);
 
                     pool.getConnection(function(err, connection) {
-                        connection.query("UPDATE users SET access_token = '"+ bodyJson["access_token"] +"', refresh_token = '"+bodyJson["refresh_token"]+"' WHERE dcid = "+message.author.id);
+                        connection.query("UPDATE users SET access_token = '"+ bodyJson["access_token"] +"', refresh_token = '"+bodyJson["refresh_token"]+"' WHERE dcid = "+dcid);
                     });
                     callback(bodyJson['access_token']); 
                 });
@@ -227,75 +217,80 @@ function refreshToken(message, callback) {
 
 function logout(message, args) {
 
-    getUserCredentials(message.author, function (result) {
+    getUserCredentials(message.author.id, function (result) {
         if (JSON.stringify(result) == "[]") {
             message.channel.send('Nem vagy bejelentkezve! Bejelentkezéshez használd a `:login` parancsot!');
             return;
         } else {
             pool.getConnection(function(err, connection) {
                 connection.query("DELETE FROM users WHERE dcid = ?", [message.author.id]);
+                connection.query("DELETE FROM notifications WHERE dcid = ?", [message.author.id]);
+                connection.query("DELETE FROM evaluations WHERE dcid = ?", [message.author.id]);
                 message.channel.send('Sikeres kijelentkezés!');
             });
         }
     });
 }
 
-function sendJegyek(message, args, bodyJSON){
-
-    result = bodyJSON.Evaluations.reduce(function (r, a) {
-        r[a.Subject] = r[a.Subject] || [];
-        r[a.Subject].push(a);
-        return r;
-    }, Object.create(null));
-    
-    const jegyekEmbed = new Discord.RichEmbed()
-        .setColor('#1979e0')
-        .setTitle('Az idei jegyeid')
-        .setAuthor(bodyJSON.Name, message.author.avatarURL, '');
+function jegyek(message, args){
+    getUserData (message, function (bodyJSON) {
+        result = bodyJSON.Evaluations.reduce(function (r, a) {
+            r[a.Subject] = r[a.Subject] || [];
+            r[a.Subject].push(a);
+            return r;
+        }, Object.create(null));
         
-        Object.keys(result).forEach(function (key) {
-            var str1 = "";
-            result[key].forEach(jegy => {
-                if (jegy.Theme != "") {
-                    str1 = str1 + jegy.Value + " | " + jegy.Theme  + " | " + jegy.CreatingTime.substr(0, 10) + "\n";
-                } else {
-                    str1 = str1 + jegy.Value + " | " + jegy.CreatingTime.substr(0, 10) + "\n";
-                }
+        const jegyekEmbed = new Discord.RichEmbed()
+            .setColor('#1979e0')
+            .setTitle('Az idei jegyeid')
+            .setAuthor(bodyJSON.Name, message.author.avatarURL, '');
+            
+            Object.keys(result).forEach(function (key) {
+                var str1 = "";
+                result[key].forEach(jegy => {
+                    if (jegy.Theme != "") {
+                        str1 = str1 + jegy.Value + " | " + jegy.Theme  + " | " + jegy.CreatingTime.substr(0, 10) + "\n";
+                    } else {
+                        str1 = str1 + jegy.Value + " | " + jegy.CreatingTime.substr(0, 10) + "\n";
+                    }
+                });
+                jegyekEmbed.addField(key, str1)  
+            })
+            jegyekEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
+
+        message.channel.send(jegyekEmbed);
+    });
+}
+
+function atlag(message, args){
+    getUserData (message, function (bodyJSON) {
+        const atlagEmbed = new Discord.RichEmbed()
+            .setColor('#1979e0')
+            .setAuthor(bodyJSON.Name + " - Átlagok", message.author.avatarURL, '');
+
+            Object.values(bodyJSON.SubjectAverages).forEach(tantargy => {
+                str2 = "Átlag: " + tantargy.Value;
+                atlagEmbed.addField(tantargy.Subject, str2);
             });
-            jegyekEmbed.addField(key, str1)  
-        })
-        jegyekEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
 
-    message.channel.send(jegyekEmbed);
+            atlagEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
+
+        message.channel.send(atlagEmbed);
+    });
 }
 
-function sendAtlag(message, args, bodyJSON){
-    const atlagEmbed = new Discord.RichEmbed()
-        .setColor('#1979e0')
-        .setAuthor(bodyJSON.Name + " - Átlagok", message.author.avatarURL, '');
-
-        Object.values(bodyJSON.SubjectAverages).forEach(tantargy => {
-            str2 = "Átlag: " + tantargy.Value;
-            atlagEmbed.addField(tantargy.Subject, str2);
-        });
-
-        atlagEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
-
-    message.channel.send(atlagEmbed);
-}
-
-function doCommand(message, args, commandToDo) {
-    getUserCredentials(message.author, function (result) {
+function getUserData(message, callback) {
+    getUserCredentials(message.author.id, function (result) {
         if (JSON.stringify(result) == "[]") {
             message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
             return;
         } else {
-            refreshToken(message, function (access_token) {
-                var tokenfile = result[0];    
+            refreshToken(message.author.id, function (access_token) {
+                var settings = result[0];    
     
-                if (args.length != 0) { message.channel.send('Hibásan megadott paraméterek!\n`:jegyek`'); return; }
+                //if (args.length != 0) { message.channel.send('Hibásan megadott paraméterek!\n`:jegyek`'); return; }
     
-                var URL = tokenfile["institute_code"]+".e-kreta.hu";
+                var URL = settings["institute_code"]+".e-kreta.hu";
                 var PATH = "/mapi/api/v1/Student";
     
                 var options = {
@@ -323,15 +318,13 @@ function doCommand(message, args, commandToDo) {
                         if (isJsonString(jegyekstr)) {
                             obj=JSON.parse(jegyekstr);
     
-                            eval(commandToDo + "(message, args, obj)");
+                            callback(obj);
                         } else {
-                            message.channel.send(jegyekstr);
-                            refreshToken(message, args, "doCommand(message, args, "+commandToDo+")");
+                            message.reply('Hiba történt az adatok lekérdezése közben!');
                         }
                     });
     
                 });
-    
     
                 req.on('error', function(e) {
                     console.log('problem with request: ' + e.message);
@@ -346,48 +339,115 @@ function doCommand(message, args, commandToDo) {
     });
 }
 
-function insertJegyek (message) {
-    getUserCredentials(message.author, function (result) {
-        if (JSON.stringify(result) == "[]") {
-            console.log('Nem találhatóak a felhasználó adatai a rendszerben! DCID: '+message.author.id);
-            return;
-        } else {
-            var arr = [];
+function getUserEvaluations(dcid, callback) {
+    getUserCredentials(dcid, function (result) {
+        refreshToken(dcid, function (access_token) {
+            var settings = result[0];    
 
-            result.Evaluations.forEach(jegy => {
-                arr.push(jegy.EvaluationId);
+/*             var URL = settings["institute_code"]+".e-kreta.hu";
+            var PATH = "/mapi/api/v1/Student"; */
+
+            var URL = "dev.davidjaksa.com";
+            var PATH = "/kreta/test.json";
+
+            var options = {
+                host: URL,
+                port: 443,
+                path: PATH,
+                method: 'GET',
+                ecdhCurve: 'auto', //secp384r1
+                headers: {
+                    'Authorization': 'Bearer ' + access_token
+                }
+            };
+
+            var req = https.request(options, function(res) {
+                res.setEncoding('utf8');
+
+                // On data
+                var jegyekstr='';
+                res.on('data',function(chunk){
+                    jegyekstr+=chunk;
+                });
+
+                res.on('end',function(){
+                    if (isJsonString(jegyekstr)) {
+                        obj=JSON.parse(jegyekstr);
+
+                        callback(obj.Evaluations);
+                    }
+                });
             });
 
-            pool.getConnection(function(err, connection) {
-                connection.query("INSERT INTO evaluations(dcid, list) VALUES("+message.author.id+", '"+JSON.stringify(arr)+"')");
+            req.on('error', function(e) {
+                console.log('problem with request: ' + e.message);
             });
-        }
+
+            // write some data to the request body
+            req.write('\n');
+            req.end();
+        }); 
+    });
+}
+
+function insertJegyek (message, insert) {
+    getUserCredentials(message.author.id, function (result) {
+        getUserEvaluations(message.author.id, function (obj) {
+            if (JSON.stringify(result) == "[]") {
+                console.log('Nem találhatóak a felhasználó adatai a rendszerben! DCID: '+message.author.id);
+                return;
+            } else {
+                var arr = [];
+    
+                obj.forEach(jegy => {
+                    arr.push(jegy.EvaluationId);
+                });
+                
+                if (insert) {
+                    pool.getConnection(function(err, connection) {
+                        connection.query("INSERT INTO evaluations(dcid, list) VALUES("+message.author.id+", '"+JSON.stringify(arr)+"')");
+                    });
+                } else {
+                    pool.getConnection(function(err, connection) {
+                        connection.query("UPDATE evaluations SET list = '"+ JSON.stringify(arr) +"' WHERE dcid = "+message.author.id);
+                    });
+                }
+            }
+        });
     });
 }
 
 async function check() {
-    getUserCredentials(message.author, async function (result) {
-        if (JSON.stringify(result) == "[]") {
-            console.log('Nem találhatóak a felhasználó adatai a rendszerben! DCID: '+message.author.id);
-            return;
-        } else {   
-            result.Evaluations.forEach(jegy => {
-                arr.push(jegy.EvaluationId);
-            });
+    while (1) {
+        pool.getConnection(function(err, connection) {
+            connection.query("SELECT DISTINCT dcid FROM notifications", function (err, users_result, fields) {
+                if (err) throw err;
 
-            while (1) {
-                getUserCredentials(message.author, function (bodyJson) {
-                    result.Evaluations.forEach(jegy => {
-                        if (!arr.includes(jegy.EvaluationId)) {
-                            console.log(jegy.Subject + " " + jegy.Value);
-                        }
+                users_result.forEach(user => {
+                    getUserEvaluations(user.dcid, function (kreta_jegyek) {
+                        connection.query("SELECT * FROM evaluations WHERE dcid ="+user.dcid, function (err, mentett_jegyek, fields) {
+                            var uj_jegyek = "";
+                            kreta_jegyek.forEach(jegy => {
+                                if (JSON.parse(mentett_jegyek[0].list).includes(jegy.EvaluationId)) {
+                                    uj_jegyek += "\n" + jegy.Subject + " - " + jegy.Value;
+                                }
+                            });
+                            connection.query("SELECT * FROM notifications WHERE dcid ="+user.dcid, function (err, user_notifications, fields) {
+                                user_notifications.forEach(notification => {
+                                    connection.query("SELECT * FROM guilds WHERE guildid ="+notification.guildid, function (err, guild_result, fields) {
+                                        client.channels.find("id", guild_result[0].channelid.toString()).then(channel => {
+                                            channel.send("<@"+user.dcid+"> - **Új jegyek érkeztek!**"+uj_jegyek);
+                                        });
+                                    });
+                                });
+                            });
+                        });
                     });
                 });
-
-                await sleep(10000);
-            }
-        }
-    });
+            });
+        });
+        await sleep(30 * 1000);
+    }
 }
 
 function ertesitesek(message, args) {
@@ -480,7 +540,7 @@ client.on('message', message => {
             });
             return;
         }
-        doCommand(message, args, "sendJegyek");
+        jegyek(message, args);
     }
 /* 
     if (command === 'ertesitesek') {
@@ -496,13 +556,20 @@ client.on('message', message => {
     }
 
     if (command === 'atlag') {
-        doCommand(message, args, "sendAtlag");
+        atlag(message, args);
     }
 
     if (command === 'logout') {
+        if (message.channel.type != "dm") {
+            message.reply('ezt a parancsot csak privátban használhatod! :no_entry:')
+            .then(errorMessage => {
+                delayDelete(message);
+                delayDelete(errorMessage);
+            });
+            return;
+        }
         logout(message, args);
     }
-
 });
 
 client.on("guildCreate", guild => {
