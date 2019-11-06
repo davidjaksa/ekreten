@@ -149,7 +149,9 @@ function loginUser(message, args) {
                     pool.getConnection(function(err, connection) {
                         connection.query("INSERT INTO users(dcid, institute_code, refresh_token, access_token, expires_in) VALUES("+message.author.id+", '"+args[2]+"', '"+refresh_token+"', '"+access_token+"', "+bodyJson["expires_in"]+" )");
                     });
-
+                    setTimeout(() => {
+                        insertJegyek(message);
+                    }, 1000);
                 });
             });
 
@@ -344,6 +346,50 @@ function doCommand(message, args, commandToDo) {
     });
 }
 
+function insertJegyek (message) {
+    getUserCredentials(message.author, function (result) {
+        if (JSON.stringify(result) == "[]") {
+            console.log('Nem találhatóak a felhasználó adatai a rendszerben! DCID: '+message.author.id);
+            return;
+        } else {
+            var arr = [];
+
+            result.Evaluations.forEach(jegy => {
+                arr.push(jegy.EvaluationId);
+            });
+
+            pool.getConnection(function(err, connection) {
+                connection.query("INSERT INTO evaluations(dcid, list) VALUES("+message.author.id+", '"+JSON.stringify(arr)+"')");
+            });
+        }
+    });
+}
+
+async function check() {
+    getUserCredentials(message.author, async function (result) {
+        if (JSON.stringify(result) == "[]") {
+            console.log('Nem találhatóak a felhasználó adatai a rendszerben! DCID: '+message.author.id);
+            return;
+        } else {   
+            result.Evaluations.forEach(jegy => {
+                arr.push(jegy.EvaluationId);
+            });
+
+            while (1) {
+                getUserCredentials(message.author, function (bodyJson) {
+                    result.Evaluations.forEach(jegy => {
+                        if (!arr.includes(jegy.EvaluationId)) {
+                            console.log(jegy.Subject + " " + jegy.Value);
+                        }
+                    });
+                });
+
+                await sleep(10000);
+            }
+        }
+    });
+}
+
 function ertesitesek(message, args) {
     getGuildNotificationChannel(message.guild, function (channel) {
         if (channel == null) {
@@ -376,7 +422,10 @@ function ertesitesek(message, args) {
                     } else {
                         pool.getConnection(function(err, connection) {
                             connection.query("DELETE FROM notifications WHERE dcid = ? AND guildid = ?", [message.author.id, message.guild.id]);
-                            message.reply("az értesítéseket ezen a szerveren sikeresen kikapcsoltad! :white_check_mark:");
+                            delayDelete(message, 10000);
+                            message.reply("az értesítéseket ezen a szerveren sikeresen kikapcsoltad! :white_check_mark:").then(replyMessage => {
+                                delayDelete(replyMessage, 10000);
+                            });
                         });
                     }
                 } else if (args[0] == "be") {
@@ -388,7 +437,10 @@ function ertesitesek(message, args) {
                     } else {
                         pool.getConnection(function(err, connection) {
                             connection.query("INSERT INTO notifications(dcid, guildid) VALUES("+message.author.id+", "+message.guild.id+")");
-                            message.reply("az értesítéseket ezen a szerveren sikeresen bekapcsoltad! :white_check_mark:");
+                            delayDelete(message, 10000);
+                            message.reply("az értesítéseket ezen a szerveren sikeresen bekapcsoltad! :white_check_mark:").then(replyMessage => {
+                                delayDelete(replyMessage, 10000);
+                            });
                         });
                     }
                 } else {
@@ -430,8 +482,16 @@ client.on('message', message => {
         }
         doCommand(message, args, "sendJegyek");
     }
+/* 
+    if (command === 'ertesitesek') {
+        ertesitesek(message, args);
+    } */
 
     if (command === 'ertesitesek') {
+        if (message.channel.type == "dm") {
+            message.channel.send('Sajnálom, ezt a parancsot csak szerveren használhatod! :no_entry:');
+            return;
+        }
         ertesitesek(message, args);
     }
 
