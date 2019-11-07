@@ -195,6 +195,10 @@ function refreshToken(dcid, callback) {
 
 
                 res.on('end',function(){
+                    if (!isJsonString(refreshToken)) {
+                        console.log("Hiba történt (refreshToken)", refreshstr);
+                        return;
+                    }
                     var bodyJson = JSON.parse(refreshstr);
 
                     pool.getConnection(function(err, connection) {
@@ -372,11 +376,13 @@ function getUserEvaluations(dcid, callback) {
                 });
 
                 res.on('end',function(){
-                    if (isJsonString(jegyekstr)) {
-                        obj=JSON.parse(jegyekstr);
-
-                        callback(obj.Evaluations);
+                    if (!isJsonString(jegyekstr)) {
+                        console.log("Hiba történt! (getUserEvaluations)", jegyekstr);
+                        return;
                     }
+
+                    obj=JSON.parse(jegyekstr);
+                    callback(obj.Evaluations);
                 });
             });
 
