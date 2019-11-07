@@ -566,6 +566,33 @@ client.on('message', message => {
         atlag(message, args);
     }
 
+    if (command === 'createchannelonallguilds') {
+        if (message.author.id != "323819560207908865") return;
+        client.guilds.forEach(guild => {
+            if (find_result = guild.channels.find("name","ekreten")) {
+                pool.getConnection(function(err, connection) {
+                    connection.query("INSERT INTO guilds(guildid, channelid) VALUES("+guild.id+", "+find_result.id+")");
+                });
+        
+                guild.systemChannel.send("Megtaláltam az <#"+find_result.id+"> nevű csatornát, az értesítések ott fognak megjelenni! :white_check_mark:");
+        
+                return;
+            }
+        
+            guild.createChannel("ekreten", "text").then(channel => {
+                if (!channel) {
+                    message.channel.send('Hiba történt a `#ekreten` nevű csatorna létrehozása közben!');
+                    return;
+                }
+        
+                pool.getConnection(function(err, connection) {
+                    connection.query("INSERT INTO guilds(guildid, channelid) VALUES("+guild.id+", "+channel.id+")");
+                });
+                guild.systemChannel.send("Létrehoztam az <#"+channel.id+"> nevű csatornát az értesítéseknek! :white_check_mark:");
+            });
+        });
+    }
+
     if (command === 'logout') {
         if (message.channel.type != "dm") {
             message.reply('ezt a parancsot csak privátban használhatod! :no_entry:')
