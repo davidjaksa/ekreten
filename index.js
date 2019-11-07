@@ -140,7 +140,7 @@ function loginUser(message, args) {
                 connection.query("INSERT INTO users(dcid, institute_code, refresh_token, access_token, expires_in) VALUES("+message.author.id+", '"+args[2]+"', '"+refresh_token+"', '"+access_token+"', "+bodyJson["expires_in"]+" )", function (error, results, fields) {
                     if (error) throw error;
 
-                    insertJegyek(message, true);
+                    insertJegyek(message.author.id, true);
                 });
             });
 
@@ -340,15 +340,16 @@ function getUserData(message, callback) {
 }
 
 function getUserEvaluations(dcid, callback) {
+    console.log("Jegyek lekérve!");
     getUserCredentials(dcid, function (result) {
         refreshToken(dcid, function (access_token) {
             var settings = result[0];    
 
-/*             var URL = settings["institute_code"]+".e-kreta.hu";
-            var PATH = "/mapi/api/v1/Student"; */
-
+            var URL = settings["institute_code"]+".e-kreta.hu";
+            var PATH = "/mapi/api/v1/Student";
+/* 
             var URL = "dev.davidjaksa.com";
-            var PATH = "/kreta/test.json";
+            var PATH = "/kreta/test.json"; */
 
             var options = {
                 host: URL,
@@ -390,11 +391,12 @@ function getUserEvaluations(dcid, callback) {
     });
 }
 
-function insertJegyek (message, insert) {
-    getUserCredentials(message.author.id, function (result) {
-        getUserEvaluations(message.author.id, function (obj) {
+function insertJegyek (dcid, insert) {
+    console.log("Jegyek beillesztve!");
+    getUserCredentials(dcid, function (result) {
+        getUserEvaluations(dcid, function (obj) {
             if (JSON.stringify(result) == "[]") {
-                console.log('Nem találhatóak a felhasználó adatai a rendszerben! DCID: '+message.author.id);
+                console.log('Nem találhatóak a felhasználó adatai a rendszerben! DCID: '+dcid);
                 return;
             } else {
                 var arr = [];
@@ -403,13 +405,15 @@ function insertJegyek (message, insert) {
                     arr.push(jegy.EvaluationId);
                 });
                 
+                console.log(arr);
+
                 if (insert) {
                     pool.getConnection(function(err, connection) {
-                        connection.query("INSERT INTO evaluations(dcid, list) VALUES("+message.author.id+", '"+JSON.stringify(arr)+"')");
+                        connection.query("INSERT INTO evaluations(dcid, list) VALUES("+dcid+", '"+JSON.stringify(arr)+"')");
                     });
                 } else {
                     pool.getConnection(function(err, connection) {
-                        connection.query("UPDATE evaluations SET list = '"+ JSON.stringify(arr) +"' WHERE dcid = "+message.author.id);
+                        connection.query("UPDATE evaluations SET list = '"+ JSON.stringify(arr) +"' WHERE dcid = "+dcid);
                     });
                 }
             }
@@ -418,6 +422,7 @@ function insertJegyek (message, insert) {
 }
 
 async function check() {
+    console.log("check");
     while (1) {
         pool.getConnection(function(err, connection) {
             connection.query("SELECT DISTINCT dcid FROM notifications", function (err, users_result, fields) {
@@ -428,19 +433,21 @@ async function check() {
                         connection.query("SELECT * FROM evaluations WHERE dcid ="+user.dcid, function (err, mentett_jegyek, fields) {
                             var uj_jegyek = "";
                             kreta_jegyek.forEach(jegy => {
-                                if (JSON.parse(mentett_jegyek[0].list).includes(jegy.EvaluationId)) {
+                                if (!JSON.parse(mentett_jegyek[0].list).includes(jegy.EvaluationId)) {
                                     uj_jegyek += "\n" + jegy.Subject + " - " + jegy.Value;
                                 }
                             });
-                            connection.query("SELECT * FROM notifications WHERE dcid ="+user.dcid, function (err, user_notifications, fields) {
-                                user_notifications.forEach(notification => {
-                                    connection.query("SELECT * FROM guilds WHERE guildid ="+notification.guildid, function (err, guild_result, fields) {
-                                        client.channels.find("id", guild_result[0].channelid.toString()).then(channel => {
-                                            channel.send("<@"+user.dcid+"> - **Új jegyek érkeztek!**"+uj_jegyek);
+                            if (uj_jegyek != "") {
+                                connection.query("SELECT * FROM notifications WHERE dcid ="+user.dcid, function (err, user_notifications, fields) {
+                                    user_notifications.forEach(notification => {
+                                        connection.query("SELECT * FROM guilds WHERE guildid ="+notification.guildid, function (err, guild_result, fields) {
+                                            var channel_find_result = client.channels.find("id", guild_result[0].channelid.toString())
+                                            channel_find_result.send("<@"+user.dcid+"> - **Új jegyek érkeztek!**"+uj_jegyek);
+                                            insertJegyek(user.dcid);
                                         });
                                     });
                                 });
-                            });
+                            }
                         });
                     });
                 });
