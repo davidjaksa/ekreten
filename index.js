@@ -97,70 +97,80 @@ function loginUser(message, args) {
             message.channel.send('Már be vagy jelentkezve! Kijelentkezéshez használd a `:logout` parancsot!');
             return;
         } else {
+            isAdatkezelesElfogadva(message.author.id, (isElfogadva) => {
 
-            if (args.length != 3) { message.channel.send('Hibásan megadott paraméterek!\n`:login <felhasznalonev> <jelszo> <intezmenyid>`\nIntézményazonosító lista: https://ekreten.davidjaksa.com/intezmeny-lista/'); return; }
-
-            var URL = args[2] + ".e-kreta.hu";
-            var PATH = "/idp/api/v1/Token";
-
-            var postData = "institute_code=" + args[2] + "&userName="+args[0]+"&password="+args[1]+"&grant_type=password&client_id=919e0c1c-76a2-4646-a2fb-7085bbbf3c56";
-
-            var options = {
-                host: URL,
-                port: 443,
-                path: PATH,
-                method: 'POST',
-                ecdhCurve: 'auto', 
-                headers: {
-                    'Content-Length': postData.length,
-                    'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
-                }
-            };
-
-            var req = https.request(options, function(res) {
-                res.setEncoding('utf8');
-
-                if (res.statusCode != 200) {                    
-                    message.channel.send('Hiba történt a bejelentkezés során!');
+                if (!isElfogadva) {
+                    message.channel.send("Még nem fogadtad el az adatkezelési nyilatkozatot! :x:\n`:adatkezeles`");
                     return;
                 }
 
-                var str234='';
-                res.on('data',function(chunk){
-                    str234+=chunk;
-                });
+                if (args.length != 3) { 
+                    message.channel.send('Hibásan megadott paraméterek!\n`:login <felhasznalonev> <jelszo> <intezmenyid>`\nIntézményazonosító lista: https://ekreten.davidjaksa.com/intezmeny-lista/'); 
+                    return; 
+                }
 
-
-                res.on('end',function(){
-                    if (!isJsonString(str234)) {
-                        message.channel.send('Hiba történt a bejelentkezés közben, kérlek próbáld újra később! :warning:');
+                var URL = args[2] + ".e-kreta.hu";
+                var PATH = "/idp/api/v1/Token";
+    
+                var postData = "institute_code=" + args[2] + "&userName="+args[0]+"&password="+args[1]+"&grant_type=password&client_id=919e0c1c-76a2-4646-a2fb-7085bbbf3c56";
+    
+                var options = {
+                    host: URL,
+                    port: 443,
+                    path: PATH,
+                    method: 'POST',
+                    ecdhCurve: 'auto', 
+                    headers: {
+                        'Content-Length': postData.length,
+                        'Content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+                    }
+                };
+    
+                var req = https.request(options, function(res) {
+                    res.setEncoding('utf8');
+    
+                    if (res.statusCode != 200) {                    
+                        message.channel.send('Hiba történt a bejelentkezés során!');
                         return;
                     }
-                    var bodyJson = JSON.parse(str234);
-
-                    var refresh_token = bodyJson["refresh_token"].toString().replace('\\', '\\\\');
-                    var access_token = bodyJson["access_token"].toString().replace('\\', '\\\\');
-
-
-                    pool.getConnection(function(err, connection) {
-                        connection.query("INSERT INTO users(dcid, institute_code, refresh_token, access_token, expires_in) VALUES("+message.author.id+", '"+args[2]+"', '"+refresh_token+"', '"+access_token+"', "+bodyJson["expires_in"]+" )", function (error, results, fields) {
-                            if (error) throw error;
-
-                            insertJegyek(message.author.id, true);
-                        });
+    
+                    var str234='';
+                    res.on('data',function(chunk){
+                        str234+=chunk;
                     });
-
-                    message.channel.send('Sikeres bejelentkezés! :white_check_mark: \n:warning: Biztonsági okok miatt arra kérünk, hogy **töröld ki** a bejelentkezési adataidat tartalmazó üzeneted. :warning: ');
+    
+    
+                    res.on('end',function(){
+                        if (!isJsonString(str234)) {
+                            message.channel.send('Hiba történt a bejelentkezés közben, kérlek próbáld újra később! :warning:');
+                            return;
+                        }
+                        var bodyJson = JSON.parse(str234);
+    
+                        var refresh_token = bodyJson["refresh_token"].toString().replace('\\', '\\\\');
+                        var access_token = bodyJson["access_token"].toString().replace('\\', '\\\\');
+    
+    
+                        pool.getConnection(function(err, connection) {
+                            connection.query("INSERT INTO users(dcid, institute_code, refresh_token, access_token, expires_in) VALUES("+message.author.id+", '"+args[2]+"', '"+refresh_token+"', '"+access_token+"', "+bodyJson["expires_in"]+" )", function (error, results, fields) {
+                                if (error) throw error;
+    
+                                insertJegyek(message.author.id, true);
+                            });
+                        });
+    
+                        message.channel.send('Sikeres bejelentkezés! :white_check_mark: \n:warning: Biztonsági okok miatt arra kérünk, hogy **töröld ki** a bejelentkezési adataidat tartalmazó üzeneted. :warning: ');
+                    });
                 });
+    
+                req.on('error', function(e) {
+                    console.log('problem with request: ' + e.message);
+                });
+    
+                // write some data to the request body
+                req.write(postData);
+                req.end();
             });
-
-            req.on('error', function(e) {
-                console.log('problem with request: ' + e.message);
-            });
-
-            // write some data to the request body
-            req.write(postData);
-            req.end();
         }
     });
 }
@@ -236,8 +246,11 @@ function logout(message, args) {
         } else {
             pool.getConnection(function(err, connection) {
                 connection.query("DELETE FROM users WHERE dcid = ?", [message.author.id]);
+
                 connection.query("DELETE FROM notifications WHERE dcid = ?", [message.author.id]);
                 connection.query("DELETE FROM evaluations WHERE dcid = ?", [message.author.id]);
+                connection.query("DELETE FROM privacy_accepts WHERE dcid = ?", [message.author.id]);
+
                 message.channel.send('Sikeres kijelentkezés!');
             });
         }
@@ -534,6 +547,34 @@ function ertesitesek(message, args) {
     });
 }
 
+function adatkezeles(message, args) {
+    if (args.length > 1) {
+        message.channel.send('Hibás paraméterek megadva! :no_entry:\n`:adatkezeles`');
+    }
+    if (args.length == 0) {
+        message.channel.send('**Adatkezelési nyilatkozat** :newspaper:\nSemmilyen felhasználónevet vagy jelszót nem tárolunk el. Bejelentkezéskor kapunk egy azonosítót, amivel később bármikor le tudjuk kérni az e-kréta által szolgáltatott adataidat, mindaddig, amíg ki nem jelentkezel. Kijelentkezéskor minden adatod törlődik a szervereinkről.\nAz adataidat nem használjuk semmilyen célra, és nem adjuk ki harmadik félnek.\n\nAz elfogadáshoz használd az `:adatkezeles elfogad` parancsot!');
+    } else if (args.length == 1 && args[0] == 'elfogad') {
+        pool.getConnection(function(err, connection) {
+            connection.query("INSERT INTO privacy_accepts(dcid) VALUES("+message.author.id+")");
+        });
+        message.channel.send('Sikeresen elfogadtad az Adatkezelési nyilatkozatot! :white_check_mark:');
+    } else {
+        message.channel.send('Hibás paraméterek megadva! :no_entry:\n`:adatkezeles`');
+    }
+}
+
+function isAdatkezelesElfogadva(dcid, callback) {
+    pool.getConnection(function(err, connection) {
+        connection.query("SELECT * FROM privacy_accepts WHERE dcid = ?", [dcid], function (err, result, fields) {
+            if (JSON.stringify(result) != "[]") {
+                callback(true);
+                return;
+            }
+            callback(false);
+        });
+    });
+}
+
 /*---------------------------------------------------------------------*/
 
 client.on('message', message => {
@@ -592,6 +633,18 @@ client.on('message', message => {
             return;
         }
         logout(message, args);
+    }
+    
+    if (command === 'adatkezeles') {
+        if (message.channel.type != "dm") {
+            message.reply('ezt a parancsot csak privátban használhatod! :no_entry:')
+            .then(errorMessage => {
+                delayDelete(message);
+                delayDelete(errorMessage);
+            });
+            return;
+        }
+        adatkezeles(message, args);
     }
 });
 
