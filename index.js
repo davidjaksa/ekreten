@@ -50,7 +50,7 @@ function mentionUser (user) {
 }
 
 async function nameChange () {
-    client.user.setActivity("davidjaksa.com", {type: "WATCHING"})
+    client.user.setActivity("ekreten.davidjaksa.com", {type: "WATCHING"})
 }
 
 async function delayDelete (message, time) {
