@@ -675,6 +675,10 @@ function isAdatkezelesElfogadva(dcid, callback) {
     });
 }
 
+function help(message, args) {
+    message.channel.send('A parancsok teljes listáját megtalálod a weboldalon!\nhttps://ekreten.davidjaksa.com');
+}
+
 /*---------------------------------------------------------------------*/
 
 client.on('message', message => {
@@ -725,6 +729,10 @@ client.on('message', message => {
 
     if (command === 'orarend') {
         orarend(message, args);
+    }
+
+    if (command === 'help') {
+        help(message, args);
     }
 
     if (command === 'logout') {
