@@ -5,6 +5,9 @@ const Discord = require('discord.js');
 const client = new Discord.Client();
 var https = require('https');
 var mysql = require('mysql');
+var moment = require('moment');
+moment().localeData("hu");
+moment().format('LL');
 
 let pool = mysql.createPool(config.mysql);
 
@@ -420,6 +423,103 @@ function getUserEvaluations(dcid, callback) {
     });
 }
 
+function orarend(message, args) {
+    getUserData(message, function (result) {
+        getUserOrarend(message.author.id, (orarend) => {
+            var week = [];
+            var orak = [];
+
+            week['Hétfő'] = moment().startOf('week').add(1, 'days').toISOString();
+            week['Kedd'] = moment().startOf('week').add(2, 'days').toISOString();
+            week['Szerda'] = moment().startOf('week').add(3, 'days').toISOString();
+            week['Csütörtök'] = moment().startOf('week').add(4, 'days').toISOString();
+            week['Péntek'] = moment().startOf('week').add(5, 'days').toISOString();
+            week['Szombat'] = moment().startOf('week').add(6, 'days').toISOString();
+            week['Vasárnap'] = moment().startOf('week').add(7, 'days').toISOString();
+
+
+            Object.keys(week).forEach(function(key) {
+                var maiorak = [];
+                orarend.forEach(ora => {
+                    if (moment(ora.Date).isSame(week[key])) {
+                        maiorak.push(ora);
+                    }
+                });
+                orak.push([key, maiorak]);
+            });
+
+            const orarendEmbed = new Discord.RichEmbed()
+                .setColor('#1979e0')
+                .setAuthor(result.Name + " - Órarend", message.author.avatarURL, '');
+                
+                orak.forEach(nap => {
+                    napiorakstr = '';
+                    nap[1].forEach(ora => {
+                        napiorakstr = napiorakstr + ora.Count + " | **" + ora.Subject + "** - " + ora.ClassRoom + "\n";
+                    });
+
+                    if (napiorakstr != '') {
+                        orarendEmbed.addField(nap[0], napiorakstr);
+                    }
+                });
+                orarendEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
+
+            message.channel.send(orarendEmbed);
+            //console.log(result);
+        });
+    });
+}
+
+function getUserOrarend(dcid, callback) {
+    getUserCredentials(dcid, function (result) {
+        refreshToken(dcid, function (access_token) {
+            var settings = result[0];    
+
+            var URL = settings["institute_code"]+".e-kreta.hu";
+            var PATH = "/mapi/api/v1/Lesson";
+
+            var options = {
+                host: URL,
+                port: 443,
+                path: PATH,
+                method: 'GET',
+                ecdhCurve: 'auto', //secp384r1
+                headers: {
+                    'Authorization': 'Bearer ' + access_token
+                }
+            };
+
+            var req = https.request(options, function(res) {
+                res.setEncoding('utf8');
+
+                // On data
+                var orarendstr='';
+                res.on('data',function(chunk){
+                    orarendstr+=chunk;
+                });
+
+                res.on('end',function(){
+                    if (!isJsonString(orarendstr)) {
+                        console.log("Hiba történt! (getUserTimetable)", orarendstr);
+                        return;
+                    }
+
+                    obj=JSON.parse(orarendstr);
+                    callback(obj);
+                });
+            });
+
+            req.on('error', function(e) {
+                console.log('problem with request: ' + e.message);
+            });
+
+            // write some data to the request body
+            req.write('\n');
+            req.end();
+        }); 
+    });
+}
+
 function insertJegyek (dcid, insert) {
     console.log("Jegyek beillesztve!");
     getUserCredentials(dcid, function (result) {
@@ -621,6 +721,10 @@ client.on('message', message => {
 
     if (command === 'atlag') {
         atlag(message, args);
+    }
+
+    if (command === 'orarend') {
+        orarend(message, args);
     }
 
     if (command === 'logout') {
