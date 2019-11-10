@@ -308,9 +308,7 @@ function atlag(message, args){
 }
 
 function getUserData(message, callback) {
-    console.log(0);
     getUserCredentials(message.author.id, function (result) {
-        console.log(1);
         if (JSON.stringify(result) == "[]") {
             message.channel.send('Még nem vagy bejelentkezve!\nBejelentkezéshez használd a `:login` parancsot!');
             return;
@@ -370,7 +368,6 @@ function getUserData(message, callback) {
 }
 
 function getUserEvaluations(dcid, callback) {
-    console.log("Jegyek lekérve!");
     getUserCredentials(dcid, function (result) {
         refreshToken(dcid, function (access_token) {
             var settings = result[0];    
@@ -465,7 +462,6 @@ function orarend(message, args) {
                 orarendEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
 
             message.channel.send(orarendEmbed);
-            //console.log(result);
         });
     });
 }
@@ -521,7 +517,6 @@ function getUserOrarend(dcid, callback) {
 }
 
 function insertJegyek (dcid, insert) {
-    console.log("Jegyek beillesztve!");
     getUserCredentials(dcid, function (result) {
         getUserEvaluations(dcid, function (obj) {
             if (JSON.stringify(result) == "[]") {
@@ -533,8 +528,6 @@ function insertJegyek (dcid, insert) {
                 obj.forEach(jegy => {
                     arr.push(jegy.EvaluationId);
                 });
-                
-                console.log(arr);
 
                 if (insert) {
                     pool.getConnection(function(err, connection) {
@@ -551,7 +544,7 @@ function insertJegyek (dcid, insert) {
 }
 
 async function check() {
-    console.log("check");
+    console.log("Check function elindítva!");
     while (1) {
         pool.getConnection(function(err, connection) {
             connection.query("SELECT DISTINCT dcid FROM notifications", function (err, users_result, fields) {
