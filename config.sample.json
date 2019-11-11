@@ -9,5 +9,8 @@
 
         "supportBigNumbers": true,
         "bigNumberStrings": true
+    },
+    "commandSettings": {
+        "atlagSafeMode": true
     }
 }

@@ -292,18 +292,47 @@ function jegyek(message, args){
 
 function atlag(message, args){
     getUserData (message, function (bodyJSON) {
-        const atlagEmbed = new Discord.RichEmbed()
-            .setColor('#1979e0')
-            .setAuthor(bodyJSON.Name + " - Átlagok", message.author.avatarURL, '');
+        if (!config.commandSettings.atlagSafeMode) {
+            const atlagEmbed = new Discord.RichEmbed()
+                .setColor('#1979e0')
+                .setAuthor(bodyJSON.Name + " - Átlagok", message.author.avatarURL, '');
 
-            Object.values(bodyJSON.SubjectAverages).forEach(tantargy => {
-                str2 = "Átlag: " + tantargy.Value;
-                atlagEmbed.addField(tantargy.Subject, str2);
-            });
+                Object.values(bodyJSON.SubjectAverages).forEach(tantargy => {
+                    str2 = "Átlag: " + tantargy.Value;
+                    atlagEmbed.addField(tantargy.Subject, str2);
+                });
 
-            atlagEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
+                atlagEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
 
-        message.channel.send(atlagEmbed);
+            message.channel.send(atlagEmbed);
+        } else {
+            result = bodyJSON.Evaluations.reduce(function (r, a) {
+                r[a.Subject] = r[a.Subject] || [];
+                r[a.Subject].push(a);
+                return r;
+            }, Object.create(null));
+            
+            const atlagEmbed = new Discord.RichEmbed()
+                .setColor('#1979e0')
+                .setTitle('Az átlagjaid idén')
+                .setAuthor(bodyJSON.Name, message.author.avatarURL, '');
+        
+                Object.keys(result).forEach(function (key) { // minden tantargy
+        
+                    var jegyekOsszeg = 0;
+        
+                    result[key].forEach(jegy => { // minden jegy
+                        jegyekOsszeg = jegyekOsszeg + jegy.NumberValue;
+                    }); 
+        
+                    str2 = "Átlag: " + (jegyekOsszeg / Object.keys(result[key]).length).toString().substr(0,3);
+                    atlagEmbed.addField(key, str2);
+                });
+        
+                atlagEmbed.setFooter('E-Kretén', 'https://scontent-lhr3-1.cdninstagram.com/vp/ee90939bc4e85c9a2581b0ca2d3dc567/5E4AABB5/t51.2885-19/s150x150/61320441_442386149878298_396437971185696768_n.jpg?_nc_ht=scontent-lhr3-1.cdninstagram.com');
+        
+            message.channel.send(atlagEmbed);
+        }
     });
 }
 
