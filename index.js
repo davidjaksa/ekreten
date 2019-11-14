@@ -1,4 +1,4 @@
-/* Konfiguráció */
+/* Konfiguráció betöltése */
 var config = require('./config.json');
 
 const Discord = require('discord.js');
@@ -345,8 +345,6 @@ function getUserData(message, callback) {
             refreshToken(message.author.id, function (access_token) {
                 var settings = result[0];    
     
-                //if (args.length != 0) { message.channel.send('Hibásan megadott paraméterek!\n`:jegyek`'); return; }
-    
                 var URL = settings["institute_code"]+".e-kreta.hu";
                 var PATH = "/mapi/api/v1/Student";
     
@@ -355,7 +353,7 @@ function getUserData(message, callback) {
                     port: 443,
                     path: PATH,
                     method: 'GET',
-                    ecdhCurve: 'auto', //secp384r1
+                    ecdhCurve: 'auto',
                     headers: {
                         'Authorization': 'Bearer ' + access_token
                     }
@@ -403,16 +401,13 @@ function getUserEvaluations(dcid, callback) {
 
             var URL = settings["institute_code"]+".e-kreta.hu";
             var PATH = "/mapi/api/v1/Student";
-/* 
-            var URL = "dev.davidjaksa.com";
-            var PATH = "/kreta/test.json"; */
 
             var options = {
                 host: URL,
                 port: 443,
                 path: PATH,
                 method: 'GET',
-                ecdhCurve: 'auto', //secp384r1
+                ecdhCurve: 'auto',
                 headers: {
                     'Authorization': 'Bearer ' + access_token
                 }
@@ -508,7 +503,7 @@ function getUserOrarend(dcid, callback) {
                 port: 443,
                 path: PATH,
                 method: 'GET',
-                ecdhCurve: 'auto', //secp384r1
+                ecdhCurve: 'auto',
                 headers: {
                     'Authorization': 'Bearer ' + access_token
                 }
@@ -538,7 +533,6 @@ function getUserOrarend(dcid, callback) {
                 console.log('problem with request: ' + e.message);
             });
 
-            // write some data to the request body
             req.write('\n');
             req.end();
         }); 
@@ -705,7 +699,6 @@ function help(message, args) {
 
 client.on('message', message => {
     if (!message.content.startsWith(config.prefix) || message.author.bot) return;
-    //if (message.channel.type != "text") return;
     
 	const args = message.content.slice(config.prefix.length).split(/ +/);
     const command = args.shift().toLowerCase();
@@ -732,10 +725,6 @@ client.on('message', message => {
         }
         jegyek(message, args);
     }
-/* 
-    if (command === 'ertesitesek') {
-        ertesitesek(message, args);
-    } */
 
     if (command === 'ertesitesek') {
         if (message.channel.type == "dm") {
