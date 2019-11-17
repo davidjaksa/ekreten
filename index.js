@@ -325,7 +325,7 @@ function atlag(message, args){
                         jegyekOsszeg = jegyekOsszeg + jegy.NumberValue;
                     }); 
         
-                    str2 = "Átlag: " + (jegyekOsszeg / Object.keys(result[key]).length).toString().substr(0,3);
+                    str2 = "Átlag: " + (jegyekOsszeg / Object.keys(result[key]).length).toString().substr(0,4);
                     atlagEmbed.addField(key, str2);
                 });
         
